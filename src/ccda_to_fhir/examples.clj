@@ -1,8 +1,6 @@
 (ns ccda-to-fhir.examples
-  ( :require
-    [ccda-to-fhir.template :as template]
-    [clojure.data.xml :as xml]
-    [clojure.zip :as zip]
+  ( :use
+    [clj-xpath.core :only [$x $x:tag $x:text $x:attrs $x:attrs* $x:node xml->doc]]
     ))
 
 (def files
@@ -13,7 +11,8 @@
 
    ])
 
-(def parse-file #(-> % clojure.java.io/input-stream xml/parse))
+
+(def parse-file #(-> % clojure.java.io/input-stream xml->doc))
 
 (def parsed-files (map parse-file files)) 
 

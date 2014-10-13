@@ -1,74 +1,41 @@
 (ns ccda-to-fhir.core
+  (:use
+    [clj-xpath.core :only [$x $x:tag $x:text $x:attrs $x:attrs* $x:node xml->doc]]
+   )
   ( :require
     [ccda-to-fhir.template :as template]
     [ccda-to-fhir.examples :as examples]
     [ccda-to-fhir.fhir :as fhir]
     [clojure.data.zip.xml :as x] 
     [clojure.data.xml :as xml]
+
     [clojure.zip :as zip]
     [clojure.data.zip :as dz]))
 
-(def auto (partial dz/auto true))
-
-(defn -all-nodes [d]
-  (->> d dz/descendants (map auto)))
-
 (defn by-template [d t]
-  (->> d -all-nodes
-       (mapcat #(x/xml-> % [:templateId (x/attr= :root t)]))))
-
+  (let [q (str"//templateId[@root='" t "']/.."  )]
+    ($x q  d)))
 
 (defn parse-iso-time [t]
   (when t
     (if-let [pieces (re-find #"^(....)(..)?(..)?" t)]
       (apply str (interpose "-" (remove nil? (rest pieces)))))))
 
-(defn null-value? [[k v]] (nil? v))
-
-(defn parse-time-point [e]
-  (fn [subpath]
-    (let [subpath (or subpath identity)
-          val (x/xml1-> e subpath (x/attr :value))
-          null-flavor (x/xml1-> e subpath (x/attr :nullFlavor))
-          as-map (->> {:iso (parse-iso-time val)
-                       :null null-flavor}
-                      (remove null-value?)
-                      (into {}))]
-      (when-not (empty? as-map) as-map))))
-
-(defn parse-effective-time [e]
-  (let [parts (map (parse-time-point e) [nil :low :high])]
-    (zipmap [:point :low :high] parts)))
-
-(defn fso-to-fhir [fso]
-  
-  (parse-effective-time (x/xml1-> (auto fso) :effectiveTime)))
-
-(defn fsos-to-fhir [d]
-  (let [tid (template/ids :functional-status-result-observation)
-        targets (by-template d tid)]
-    (map fso-to-fhir targets)))
-
-(map fsos-to-fhir examples/parsed-files)
-
-
-
 (defn map-to-fhir [{:keys [fhir-doc ccda-node mapping-context]}])
 
-                                        ; for each prop in the template, call property-to-fhir
-                                        ; then figure out how to slot that stuff into a return object
+; for each prop in the template, call property-to-fhir
+; then figure out how to slot that stuff into a return object
 
 (defmulti to-fhir-dt (fn [dt ccda-node] dt))
 
 (defmethod to-fhir-dt "string" [dt ccda-node]
   (if (= java.lang.String  (type ccda-node)) ccda-node 
-      (let [valattr (x/xml1-> ccda-node (x/attr :value))
-            text (x/xml1-> ccda-node x/text)]
-        (if valattr (str "valattr was" valattr) text))))
+      (let [valattr ($x:text "./@value" ccda-node)
+            valtext ($x:text "./")]
+        (first (remove empty? [valattr valtext])))))
 
 (defmethod to-fhir-dt "uri" [dt ccda-node]
   (to-fhir-dt "string" ccda-node))
-
 
 (defmethod to-fhir-dt "code" [dt ccda-node]
   (to-fhir-dt "string" ccda-node))
@@ -77,7 +44,7 @@
   (to-fhir-dt "string" ccda-node))
 
 (defmethod to-fhir-dt "dateTime" [dt ccda-node]
-  (( parse-time-point ccda-node) nil))
+  (parse-iso-time (to-fhir-dt "string" ccda-node)))
 
 ; 
 ;  A mapping context consists of... 
@@ -122,15 +89,12 @@
 ;  Finally, for each selected candidate, merge all dependencies into the feed.
 
 
-(defn fhir-path-to-                                kw [p]
-  (keyword (str "fhir-type-" p)))
-
 (def primitives #{"string" "code" "dateTime" "uri"})
 (defn default-template-for [dt]
   (when-not (primitives dt) (keyword (str "fhir-type-" dt))))
 
 (defn follow-path [ccda-node path]
-  (apply x/xml-> ccda-node path))
+  (apply $x path ccda-node))
 
 (declare map-context)
 (def counter (atom 1))
@@ -167,13 +131,16 @@
 
 
 (defn pval [] (let  [f1 (first examples/parsed-files)
-                     ts (->> f1 -all-nodes (mapcat #(x/xml-> % :code )))]
+                     ts ($x "//code" f1 )]
                 (map-context nil ts {} {:fhir-mapping {:path "Observation.interpretation"}})
                 ))
 
 (to-fhir-dt "string" "test")
 
 (fhir/datatypes-for-path "CodeableConcept.text")
+(type (first examples/parsed-files))
 
-(def ts (->> (first examples/parsed-files) -all-nodes (mapcat #(x/xml-> % :code ))))
-(follow-path (take 1 ts) [])
+(def ts (->> (first examples/parsed-files)
+         ($x "//code")))
+(println (count ts))
+(follow-path (take 1 ts) "./@displayName")

@@ -1,10 +1,9 @@
 (ns ccda-to-fhir.examples
   ( :require
     [ccda-to-fhir.template :as template]
-    [clojure.data.zip.xml :as x] 
     [clojure.data.xml :as xml]
     [clojure.zip :as zip]
-    [clojure.data.zip :as dz]))
+    ))
 
 (def files
   [
@@ -14,11 +13,7 @@
 
    ])
 
-(def parse-file #(-> % clojure.java.io/input-stream xml/parse zip/xml-zip))
+(def parse-file #(-> % clojure.java.io/input-stream xml/parse))
 
 (def parsed-files (map parse-file files)) 
-
-
-
-(defn codes [p] ( x/xml-> p :code)) 
 

@@ -89,11 +89,11 @@
     :fhir-mapping {:as :Type :path "Period"}
     :props [
             {
-             :path "./low"
+             :path [:low]
              :fhir-mapping {:path "Period.start"}
              }
             {
-             :path "./high"
+             :path [:high]
              :fhir-mapping {:path "Period.end"}
              }
             ]
@@ -104,19 +104,19 @@
     :fhir-mapping {:as :Type :path "CodeableConcept"}
     :props [
             {
-             :path "./@displayName"
+             :path [(x/attr :displayName)]
              :max 1
              :fhir-mapping {:path "CodeableConcept.display"}
              }
             {
-             :path "."
+             :path []
              :max 1
              :fhir-mapping {:path "CodeableConcept.coding"
                             :details {"CodeableConcept.coding.primary" true}
                             }
              }
             {
-             :path "./translation"
+             :path [:translation]
              :fhir-mapping {:path "CodeableConcept.coding"}
              }
             ]
@@ -127,17 +127,17 @@
     :fhir-mapping {:as :Type :path "Coding"}
     :props [
             {
-             :path "./@code"
+             :path [(x/attr :code)]
              :max 1
              :fhir-mapping {:path "Coding.code"}
              }
             {
-             :path "./@displayName"
+             :path [(x/attr :displayName)]
              :max 1
              :fhir-mapping {:path "Coding.display"}
              }
             {
-             :path "./@codeSystem"
+             :path [(x/attr :codeSystem)]
              :max 1
              :fhir-mapping {:path "Coding.system" :transform :oid-to-uri}
              }

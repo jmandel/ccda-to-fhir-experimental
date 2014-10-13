@@ -9,6 +9,7 @@
     [clojure.data.zip :as dz]))
 
 (def auto (partial dz/auto true))
+(def calls ( atom {:text 0 :follow 0}))
 
 (defn -all-nodes [d]
   (->> d dz/descendants (map auto)))
@@ -62,9 +63,12 @@
 
 (defmethod to-fhir-dt "string" [dt ccda-node]
   (if (= java.lang.String  (type ccda-node)) ccda-node 
-      (let [valattr (x/xml1-> ccda-node (x/attr :value))
-            text (x/xml1-> ccda-node x/text)]
-        (if valattr (str "valattr was" valattr) text))))
+      (do 
+
+        (swap! calls update-in [:text] #(+ % 2))
+        (let [valattr (x/xml1-> ccda-node (x/attr :value))
+              text (x/xml1-> ccda-node x/text)]
+          (if valattr (str "valattr was" valattr) text)))))
 
 (defmethod to-fhir-dt "uri" [dt ccda-node]
   (to-fhir-dt "string" ccda-node))
@@ -122,22 +126,26 @@
 ;  Finally, for each selected candidate, merge all dependencies into the feed.
 
 
-(defn fhir-path-to-                                kw [p]
+(defn fhir-path-to-kw [p]
   (keyword (str "fhir-type-" p)))
 
 (def primitives #{"string" "code" "dateTime" "uri"})
 (defn default-template-for [dt]
   (when-not (primitives dt) (keyword (str "fhir-type-" dt))))
 
-(defn follow-path [ccda-node path]
-  (apply x/xml-> ccda-node path))
+(defn follow-path [ccda-nodes path]
+
+     (swap! calls update-in [:follow] inc)
+    (mapcat  #(apply x/xml-> % path) ccda-nodes))
 
 (declare map-context)
 (def counter (atom 1))
 
 (defn fill-in-template [ccda-context ccda-node fhir-in-progress mapping-context]
+
+  ;(println "filling in for"  mapping-context)
   (reduce (fn [acc prop]
-            (let [at-path (follow-path ccda-node (prop :path))
+            (let [at-path (follow-path [ccda-node] (prop :path))
                   filled (map-context ccda-context at-path acc prop )]
               
               (if (> (count filled) 0 )
@@ -152,6 +160,7 @@
   "Returns a vector of FHIR data (primitives, compounds, or resources) each
    meta-tagged to indicate their FHIR type (e.g. {:path \"CodeableCon/orkingcept\"})"
   [ccda-context ccda-nodes fhir-in-progress mapping-context]
+  ;(println "mapping context for " (count ccda-nodes) mapping-context)
   (let [fhir-path (get-in mapping-context [:fhir-mapping :path])
         fhir-dts (fhir/datatypes-for-path fhir-path)
         template (mapping-context :template)]
@@ -168,12 +177,18 @@
 
 (defn pval [] (let  [f1 (first examples/parsed-files)
                      ts (->> f1 -all-nodes (mapcat #(x/xml-> % :code )))]
+                (println "Got some ts " (count ts))
                 (map-context nil ts {} {:fhir-mapping {:path "Observation.interpretation"}})
                 ))
 
-(to-fhir-dt "string" "test")
+(time (def x (pval)))
 
-(fhir/datatypes-for-path "CodeableConcept.text")
 
-(def ts (->> (first examples/parsed-files) -all-nodes (mapcat #(x/xml-> % :code ))))
-(follow-path (take 1 ts) [])
+
+(let [codes (follow-path  (->> (first examples/parsed-files) -all-nodes) [:code]  )]
+  (println "Across " (count codes) "codes")
+  (time (def xx
+          (doall (for  [n (range 1000)]
+                   (follow-path codes  [(x/attr :displayName)]))))))
+
+(first xx)

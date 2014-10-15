@@ -44,6 +44,8 @@
 (defn kw-to-fhir [k] (subs (str k) 1))
 
 (defn datatypes-for-path [path]
+
+  (println "dts for " path)
   (let [elems     (fhir-paths path)
         types     (js-> elems "definition" "type")
         refs      (js-> elems "definition" "nameReference")

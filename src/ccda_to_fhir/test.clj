@@ -1,3 +1,15 @@
+(ns ccda-to-fhir.test
+  ( :use [ccda-to-fhir.core])
+  ( :require
+[clojure.data.zip :as dz]
+    [clojure.zip :as zip]
+    [clojure.data.xml :as xml]
+    [clojure.data.zip.xml :as x] 
+    [ccda-to-fhir.template :as template]
+    [ccda-to-fhir.examples :as examples]
+    [clojure.pprint :as pprint])
+  )
+
 
 
 (true? (list (first (dz/descendants d))))
@@ -49,5 +61,29 @@
 (count (nth dd 300))
 (nth dd 300)
 (println (map count dd))
+
+
+
+(time (pprint/pprint 
+       (fill-in-template nil (first examples/parsed-files) {} (template/definitions  :ccda-sections) )))
+
+(defn cval [] (let  [f1 (first examples/parsed-files)
+                     ts (->> f1 -all-nodes (mapcat #(x/xml-> % :value )))]
+                (println "Got some ts " (count ts))
+                (def cc ts)))
+(time ( cval))
+(count cc)
+
+(count  (follow-path (map auto cc) [(x/attr= :xsi/type "CD")]))
+
+(time (def x (cval)))
+
+
+(pprint/pprint  (let  [f1 (first examples/parsed-files)
+                ts (->> f1 -all-nodes (mapcat #(x/xml-> % :value [(x/attr= :xsi/type "CD")]  )))]
+           (println "Got some values " (count ts))
+           (zip/node (first ts))
+           ))
+
 
 

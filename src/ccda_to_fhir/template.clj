@@ -19,6 +19,7 @@
 
    :ccda-sections
    {
+    :fhir-mapping {:as :Resource :path "Composition" }
     :props [
             {
              :xpath "./component/structuredBody/component/section"
@@ -31,7 +32,7 @@
    :functional-status-section
    {
     :inherit :texted
-    :fhir-mapping {:path "Composition.section" }
+    :fhir-mapping {:as :Resource :path "Composition.section" }
     :props [
             {
              :min 1
@@ -153,9 +154,6 @@
     :fhir-mapping {:as :Type :path "SampledData"}
     }
 
-
-
-
   
    :fhir-type-Coding
    {
@@ -179,20 +177,10 @@
             ]
     }
 
-   :ccda-value-element
+   :ccda-value-element-resolver
    {
-    "CodeableConcept"
-            {
-             :props [ {
-                     :xpath "./[@xsi:type='CD']"
-                     :fhir-mapping {:path "CodeableConcept"}}]
-             }
-     "string"
-            {
-             :props [ {
-                     :xpath "./[@xsi:type='ST']"
-                     :fhir-mapping {:path "string"}}]
-             }
+    "CodeableConcept" {:xpath-prefix "./[@xsi:type='CD']" :fhir-mapping {:path "CodeableConcept"}}
+    "string" {:xpath-prefix "./[@xsi:type='ST']" :fhir-mapping {:path "string"}}
     }
 
    :functional-status-result-observation
@@ -211,7 +199,7 @@
              :max 1
              :xpath "./value"
              :fhir-mapping {:path "Observation.value[x]"}
-             :template-set :ccda-value-element
+             :resolve-with :ccda-value-element-resolver
              }
             {
              :min 0

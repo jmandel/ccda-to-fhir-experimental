@@ -29,8 +29,10 @@
 
 (defmethod to-fhir-dt "string" [dt ccda-node]
   (println "Converting -> string " (type ccda-node))
-  (if (= java.lang.String  (type ccda-node)) ccda-node 
-      (do 
+  (cond
+   (nil? ccda-node) nil
+   (= java.lang.String  (type ccda-node)) ccda-node 
+   :else (do 
         (swap! calls update-in [:text] #(+ % 2))
         (let [valattr (x/xml1-> ccda-node (x/attr :value))
               text (x/xml1-> ccda-node x/text)]
@@ -103,34 +105,40 @@
 (def primitives #{"string" "code" "dateTime" "uri" "time"})
 
 (defn default-template-for [template mapping-context dt]
-  (let [t-set (get-in mapping-context [:template-set])
-        linked-template (get-in template/definitions [t-set dt])
+  (let [resolver (get-in mapping-context [:resolve-with])
+        link (get-in template/definitions [resolver dt])
+        linked-path (get-in link [:fhir-mapping :path])
         path (get-in mapping-context [:fhir-mapping :path])
         ppath (keyword (str "fhir-type-" path))
         tpath(keyword (str "fhir-type-" dt))]
 
     (println "DECIDING ON" template mapping-context dt)
     (cond
-     template (template/definitions template)
-     linked-template linked-template
-     t-set false
+     template {:template  (template/definitions template)}
+     link (merge link (default-template-for nil link linked-path))
+     resolver false ; resolver existed but didn't suppor this datatype
+                    ; -> nothing to do.
      (primitives path) {:primitive path :path path}
      (primitives dt) {:primitive dt :path path}
      (= "internal-node" dt) false
-     (= dt "Type")  (template/definitions ppath)
-     :else  (template/definitions tpath))))
+     (= dt "Type")  {:template  (template/definitions ppath)}
+     :else  {:template (template/definitions tpath)})))
 
 (defn follow-path [ccda-nodes path]
   (println "following from " (count ccda-nodes) "to " path)
   (println (map :attrs (map zip/node ccda-nodes)))
   (swap! calls update-in [:follow] inc)
-  (mapcat  #(apply x/xml-> % path) ccda-nodes))
+  (let [ret
+        (mapcat  #(apply x/xml-> % path) ccda-nodes)]
+    (println "followed to get " (count ret))
+    ret
+    ))
 
 (declare map-context)
 (def counter (atom 1))
 
-(defn xpath-to-zipq [p]
-  (println "handle quer " p)
+(defn path-to-zipq [p]
+  (println "handle quer " (type p) p)
   (let [[dot & components] (clojure.string/split p #"/")]
     (->> components
          (mapcat
@@ -158,11 +166,15 @@
     (if tid (conj (vec q) [:templateId (x/attr= :root tid)])
         q)))
 
-(defn to-zipq [prop]
+(defn to-zipq [mapping-context prop]
   (println "to zipq " prop)
   (let [xpathq (prop :xpath)
+        _ (println "xpq" xpathq)
+        prefix (get mapping-context :xpath-prefix)
+        _ (println "prefix" prefix)
         baseq (xpath-to-zipq xpathq)
-        _ (println "base query " baseq)
+        prefixq (when prefix (xpath-to-zipq prefix))
+        baseq (concat prefixq baseq)
         template (prop :template)]
     (restrict-query-to-template baseq template)))
 
@@ -175,7 +187,10 @@
     (println "considering " (count candidates) candidates)
     ;(apply max-key #(count (pr-str %)) candidates)
     (if (< 1  (count candidates ))
-      (throw (Exception. "Can't decide among >1 candidate"))
+      (do
+        (println "failing for candidates set")
+        (pprint/pprint candidates)
+        (throw (Exception. "Can't decide among >1 candidate")))
       )
     (if (= 0 (count candidates))
       (println "No candiets for " prop base candidate-vals)
@@ -195,7 +210,8 @@
 
 (defn merge-val-into-fhir [prop base candidate-vals]
   (let [merge-point (get-in prop [ :fhir-mapping :path])
-                                        ;_ (println "merge-point " merge-point " into " base "...") 
+        candidate-vals (doall candidate-vals)
+                                        _ (println "pick best" merge-point " among " candidate-vals "...") 
         best-candidate (pick-best-candidate prop base candidate-vals)
                                         ;_ (println "merge-point best " best-candidate)
                                          proposed-merge-point (best-candidate :path)
@@ -205,7 +221,7 @@
     #_(if-not compatible
         (throw (Exception. (str "Incompatible merge points: " merge-point " vs. " proposed-merge-point ))))
     (assoc base (str (last-path-component proposed-merge-point) (swap! counter inc)) (best-candidate :value))
-    (update-in base [proposed-merge-point] (fnil conj [])  (best-candidate :value))
+    (update-in base [(str (last-path-component proposed-merge-point))] (fnil conj [])  (best-candidate :value))
 
     ))
 
@@ -214,17 +230,22 @@
 
 (defn fill-in-template [ccda-context ccda-node fhir-in-progress mapping-context]
   (println "filling in for"  mapping-context  "with context " fhir-in-progress)
-  (reduce (fn [acc prop]
-            (let [zipq (to-zipq prop)
-                  at-path (follow-path [ccda-node] zipq)
-                  filled (map-context ccda-context at-path acc prop )]
-              (if (> (count filled) 0 )
-                (merge-val-sets-into-fhir prop acc  filled)
-                acc))
-                                        ; TODO: slot things in
-                                        ; at the right places, rather
-                                        ; than just slamming in.
-            )  {} (mapping-context :props)))
+
+  (let [
+        top-level-object (get-in mapping-context [:template :fhir-mapping :path])
+        props (get-in mapping-context [:template :props])
+        all-props
+        (reduce (fn [acc prop]
+                  (let [zipq (to-zipq mapping-context prop)
+                        at-path (follow-path [ccda-node] zipq)
+                        filled (map-context ccda-context at-path acc prop )]
+                    (if (> (count filled) 0 )
+                      (merge-val-sets-into-fhir prop acc  filled)
+                      acc))
+                  )  {} props)]
+    
+    (when-not (empty? all-props )
+      (if top-level-object {:fhir-path top-level-object :fhir-value all-props} all-props))))
 
 
 (defn concrete-path-for-dt [path dt]
@@ -246,12 +267,14 @@
                    :let [fhir-path (concrete-path-for-dt fhir-path dt)
                          template (default-template-for template mapping-context dt)]]
                (do
-                 (println "tempalte of" template " against " fhir-path dt (type node))
+                 (println "tempalte of" template " against " fhir-path dt (type node) fhir-path (:path template))
                  (cond 
-                  (:primitive template) {
-                                         :path (:path template)
-                                         :value (to-fhir-dt (:primitive template) node)}
-                  template (do ;(println "doing for template " fhir-path template)
+                  (:primitive template)(let [prefix (:xpath-prefix template)
+                                             further (if prefix (to-zipq nil {:xpath prefix}))
+                                             nextnode (if prefix (first (follow-path [node] further)) node)]
+                                         {:path fhir-path :value (to-fhir-dt (:primitive template) nextnode)})
+                  (:template template) (do ;(println "doing for template " fhir-path template)
                              {:path fhir-path
                               :value  (fill-in-template ccda-context node mapping-context template)})
+                  :else (println "no tempalte found for " dt )
                   )))))))

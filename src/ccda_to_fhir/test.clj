@@ -64,8 +64,7 @@
 
 
 
-(time (pprint/pprint 
-       (fill-in-template nil (first examples/parsed-files) {} (template/definitions  :ccda-sections) )))
+
 
 (defn cval [] (let  [f1 (first examples/parsed-files)
                      ts (->> f1 -all-nodes (mapcat #(x/xml-> % :value )))]
@@ -87,3 +86,6 @@
 
 
 
+
+(time (pprint/pprint 
+       (fill-in-template nil (first examples/parsed-files) {} {:template (template/definitions  :ccda-sections)} )))

@@ -1,5 +1,7 @@
 (ns ccda-to-fhir.template
   ( :require [clojure.data.zip.xml :as x] 
+             [clojure.walk :as walk]
+             [ccda-to-fhir.fhir :as fhir]
              [clojure.data.xml :as xml]
              [clojure.zip :as zip]
              [clojure.data.zip :as dz])
@@ -14,7 +16,7 @@
    }
   )
 
-(def definitions
+(def base-definitions
   {
 
    :ccda-sections
@@ -31,8 +33,7 @@
 
    :functional-status-section
    {
-    :inherit :texted
-    :fhir-mapping {:as :Resource :path "Composition.section" }
+    :fhir-mapping {:as :Component :path "Composition.section" }
     :props [
             {
              :min 1
@@ -57,8 +58,7 @@
    
    :functional-status-result-organizer
    {
-    :inherit :result-organizer
-    :fhir-mapping {:path "Observation" }
+    :fhir-mapping {:as :Resource :path "Observation" }
     :props [
             {
              :min 1
@@ -72,30 +72,7 @@
              } 
             ]
     }
-   :coded
-   {
-    :props [
-            {
-             :key :code
-             :xpath "./code"
-             :min 1
-             :max 1
-             }
-            ]
-    }
-
-   :texted
-   {
-    :props [
-            {
-             :key :text
-             :xpath "./text"
-             :max 1
-             }
-            ]
-    }
-
-
+   
    :fhir-type-Period
    {
     :fhir-mapping {:as :Type :path "Period"}
@@ -154,7 +131,7 @@
     :fhir-mapping {:as :Type :path "SampledData"}
     }
 
-  
+   
    :fhir-type-Coding
    {
     :fhir-mapping {:as :Type :path "Coding"}
@@ -177,29 +154,41 @@
             ]
     }
 
-   :ccda-value-element-resolver
+   :ccda-value-element
    {
-    "CodeableConcept" {:xpath-prefix "./[@xsi:type='CD']" :fhir-mapping {:path "CodeableConcept"}}
-    "string" {:xpath-prefix "./[@xsi:type='ST']" :fhir-mapping {:path "string"}}
+    :fhir-mapping {:as :Mixin}
+    :props [
+            {
+             :min 0
+             :max 1
+             :xpath "./[@xsi:type='CD']"
+             :fhir-mapping {:path "CodeableConcept"}
+             }
+            {
+             :min 0
+             :max 1
+             :xpath "./[@xsi:type='ST']"
+             :fhir-mapping {:path "string"}
+             }
+            ]
     }
 
    :functional-status-result-observation
    {
-    :inherit [:result-observation :coded :texted]
     :fhir-mapping {:as :Resource :path  "Observation" }
     :props [
             {
              :min 1
              :max 1
-             :xpath "./effectiveTime"
-             :fhir-mapping {:path "Observation.applies[x]"}
+             :xpath "./value"
+             :fhir-mapping {:path "Observation.value[x]"}
+             :mixin :ccda-value-element
              }
             {
              :min 1
              :max 1
-             :xpath "./value"
-             :fhir-mapping {:path "Observation.value[x]"}
-             :resolve-with :ccda-value-element-resolver
+             :xpath "./effectiveTime"
+             :fhir-mapping {:path "Observation.applies[x]"}
              }
             {
              :min 0
@@ -237,3 +226,56 @@
             ]
     }
    })
+
+(defn merge-mixin [v]
+  (let [mixin-path (:mixin v)
+        mixin-props (get (base-definitions mixin-path) :props)
+        new-props
+        (reduce (fn [acc prop]
+                  (let [xpath (str (:xpath v ) "/" (:xpath prop))
+                        fhir-path (get-in v [:fhir-mapping :path])
+                        dt (get-in prop [:fhir-mapping :path])
+                        fhir-path (fhir/concrete-path-for-dt fhir-path dt)]
+                    (conj acc (-> prop
+                                  (assoc :xpath xpath)
+                                  (assoc-in [:fhir-mapping :path] fhir-path)))))
+                []
+                mixin-props)]
+    {:splice new-props}
+    ))
+
+(def augmenters
+  [{
+    :recognize-by vector?
+    :transform-with
+    (fn [v]
+      (->> v
+           (mapcat (fn [x] ( or (get x :splice) [x])))
+           vec))
+    }
+
+   {
+    :recognize-by #(get % :mixin)
+    :transform-with merge-mixin
+    }])
+
+(defn augment-def [one-def]
+  (reduce (fn [acc, augmenter]
+            (let [predicate (augmenter :recognize-by)
+                  transform (augmenter :transform-with)]
+              (if (predicate acc)
+                (transform acc)
+                acc
+                )))
+          one-def
+          augmenters))
+
+(def definitions  (walk/postwalk augment-def base-definitions))
+
+#_(walk/postwalk augment-def {:one {:props [:a :B {
+                                                 :min 1
+                                                 :max 1
+                                                 :xpath "./value"
+                                                 :fhir-mapping {:path "Observation.value[x]"}
+                                                 :mixin :ccda-value-element
+                                                 } :c]}} )

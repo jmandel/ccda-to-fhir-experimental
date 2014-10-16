@@ -43,9 +43,7 @@
 
 (defn kw-to-fhir [k] (subs (str k) 1))
 
-(defn datatypes-for-path [path]
-
-  (println "dts for " path)
+(defn -datatypes-for-path [path]
   (let [elems     (fhir-paths path)
         types     (js-> elems "definition" "type")
         refs      (js-> elems "definition" "nameReference")
@@ -56,5 +54,24 @@
             (fn [acc ref] (conj acc (follow-ref-path ref)))
             [] refs)}))
 
+
 (println "loaded" (count fhir-paths) "paths")
-(datatypes-for-path "Observation.value[x]")
+
+(defn concrete-path-for-dt [path dt]
+  (let [capitalized (apply str (clojure.string/upper-case (first dt)) (rest dt))]
+    (clojure.string/replace path #"\[x\]" capitalized)))
+
+(def path-to-datatypes
+  ( ->> fhir-paths
+        keys
+        (mapcat
+         (fn [p]
+           (let [dts (get (-datatypes-for-path p) :types)]
+             (concat [{:path p :types dts}]
+                     (for [dt dts]
+                       {:path (concrete-path-for-dt p dt) :types [dt]})))))
+        (apply list)
+        (reduce
+         (fn [acc {:keys [path types]}]
+           (assoc acc path types )
+           ) {})))

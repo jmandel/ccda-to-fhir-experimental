@@ -5,6 +5,7 @@
     [ccda-to-fhir.template :as template]
     [ccda-to-fhir.examples :as examples]
     [ccda-to-fhir.fhir :as fhir]
+    [clojure.data.zip.xml :as x] 
     [clojure.zip :as zip]))
 
 (defn parse-iso-time [t]
@@ -47,7 +48,6 @@
     (if template template nil)))
 
 (declare map-context)
-
 (defn pick-best-candidate [prop base candidate-vals]
   (let  [candidates
          (doall (->> candidate-vals
@@ -66,15 +66,17 @@
   (first (reverse (clojure.string/split p #"\."))))
 
 (defn merge-val-into-fhir [prop base candidate-vals]
+  (println "merging val into " prop base candidate-vals)
   (let [merge-point (get-in prop [ :fhir-mapping :path])
         candidate-vals (doall candidate-vals)
         _ (println "pick best" merge-point " among " candidate-vals "...") 
         best-candidate (pick-best-candidate prop base candidate-vals)
-        proposed-merge-point (best-candidate :path)]
+        _ (println "bst was" best-candidate)
+        proposed-merge-point (get best-candidate :path)]
 
-    #_(if-not compatible
-        (throw (Exception. (str "Incompatible merge points: " merge-point " vs. " proposed-merge-point ))))
-    (update-in base [(str (last-path-component proposed-merge-point))] (fnil conj [])  best-candidate)))
+    (if best-candidate
+      (update-in base [(str (last-path-component proposed-merge-point))] (fnil conj [])  best-candidate)
+      base)))
 
 (defn merge-val-sets-into-fhir [prop base val-sets]
   (reduce (partial merge-val-into-fhir prop) base val-sets))

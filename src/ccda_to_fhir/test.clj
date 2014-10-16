@@ -88,4 +88,8 @@
 
 
 (time (pprint/pprint 
-       (fill-in-template nil (first examples/parsed-files) {} {:template (template/definitions  :ccda-sections)} )))
+       (fill-in-template nil (first examples/parsed-files) {} (template/definitions  :ccda-sections) )))
+
+
+(def f (first examples/parsed-files))
+(type f)

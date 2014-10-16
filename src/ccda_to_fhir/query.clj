@@ -1,10 +1,12 @@
 (ns ccda-to-fhir.query
   ( :require
+    [ccda-to-fhir.template :as template]
     [clojure.pprint :as pprint]
     [clojure.data.zip.xml :as x] 
     [clojure.data.xml :as xml]
     [clojure.zip :as zip]
     [clojure.data.zip :as dz]))
+
 
 (def auto (partial dz/auto true))
 (defn -all-nodes [d]
@@ -45,6 +47,7 @@
 
 (defn follow-path [ccda-nodes path]
   (println "following from " (count ccda-nodes) "to " path)
+  (println "following from " "to " path)
   (println (map :attrs (map zip/node ccda-nodes)))
   (let [ret
         (mapcat  #(apply x/xml-> % path) ccda-nodes)]

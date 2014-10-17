@@ -1,0 +1,305 @@
+{
+ :oids 
+ {
+  :functional-status-section "2.16.840.1.113883.10.20.22.2.14"
+  :functional-status-result-organizer "2.16.840.1.113883.10.20.22.4.66" 
+  :functional-status-result-observation "2.16.840.1.113883.10.20.22.4.67"
+  :entity-name-use "2.16.840.1.113883.5.45"
+  }
+
+ :templates
+ {
+
+  :ccda
+  {
+   :template {:any-one-of :ccda-document-templates}
+   :fhir "Composition"
+   :content
+   {
+    "identifier" {:xpath "./id"}
+    "title" {:xpath "./title"}
+    "status" {:content-fixed "final"}
+    "type" {:xpath "./code"}
+    "date" {:xpath "./effectiveTime"}
+    "subject" {:xpath "./recordTarget/patientRole" :reference "Patient"}
+    "author" {:xpath "./author/assignedAuthor" :reference "Practitioner"}
+    "custodian" {:xpath "./custodian"}
+    "section" [
+               {:xpath "./section" :content-from :functional-status-section }
+               {:xpath "./section" :content-from :medications-section }
+               {:xpath "./section" :content-from :results-section }
+               ]
+    }
+
+   }
+
+  :ccda
+  {
+   :fhir-mapping {:as :Resource :path "Composition" }
+   :props [
+           {
+            :xpath "./recordTarget/patientRole"
+            :fhir-mapping {:path "Composition.subject"}
+            :template :ccda-patient-role
+            }
+           {
+            :xpath "./component/structuredBody/component/section"
+            :fhir-mapping {:path "Composition.section"}
+            :template :functional-status-section
+            }
+           ]
+   }
+
+
+  :ccda-patient-role
+  {
+   :fhir-mapping {:as :Resource :path "Patient" }
+   :props [
+           {
+            :xpath "./patient/name"
+            :fhir-mapping {:path "Patient.name"}
+            :template :ccda-patient-role
+            }
+           {
+            :xpath "./addr"
+            :fhir-mapping {:path "Patient.address"}
+            :template :functional-status-section
+            }
+           ]
+   }
+
+  :functional-status-section
+  {
+   :fhir-mapping {:as :Component :path "Composition.section" }
+   :props [
+           {
+            :min 1
+            :max 1
+            :xpath "./title"
+            :fhir-mapping {:path "Composition.section.title"}
+            }
+           {
+            :required false
+            :xpath "./entry/organizer"
+            :template :functional-status-result-organizer
+            :fhir-mapping {:path "Composition.section.entry" }
+            }
+           {
+            :required false
+            :xpath "./entry/observation"
+            :template :functional-status-result-observation
+            :fhir-mapping {:path "Composition.section.entry"}
+            }
+           ]
+   }
+  
+  :functional-status-result-organizer
+  {
+   :fhir-mapping {:as :Resource :path "Observation" }
+   :props [
+           {
+            :min 1
+            :xpath "./component/observation"
+            :template :functional-status-result-observation
+            :fhir-mapping
+            {
+             :path "Observation.related.target"
+             :details {:Observation.related.type "has-member"}
+             }
+            } 
+           ]
+   }
+
+
+  :entity-person-name-part-qualifier
+  {
+   :fhir-mapping {:as :Extension :url "http://hl7.org/fhir/Profile/iso-21090#name-qualifier"}
+
+   :props [
+           {
+            :xpath "./@use"
+            :fhir-mapping {:path "string"}
+            }
+           ]
+   }
+
+  :fhir-type-HumanName
+  {
+   :fhir-mapping {:as :Type :path "HumanName"}
+   :props [
+           {
+            :xpath "./@use"
+            :fhir-mapping
+            {
+             :path "HumanName.use"
+             :then [{:translate-code-from :entity-name-use}]
+             }
+            }
+           {
+            :xpath "./given"
+            :fhir-mapping
+            {
+             :path "HumanName.given"
+             :then [{:add-extension :entity-person-name-part-qualifier}]
+             } 
+            }
+           {
+            :xpath "./family"
+            :fhir-mapping {:path "HumanName.family"}
+            }
+           ]
+   } 
+  :fhir-type-Period
+  {
+   :fhir-mapping {:as :Type :path "Period"}
+   :props [
+           {
+            :xpath "./low/@value"
+            :fhir-mapping {:path "Period.start"}
+            }
+           {
+            :xpath "./high/@value"
+            :fhir-mapping {:path "Period.end"}
+            }
+           ]
+   }
+
+  :fhir-type-CodeableConcept
+  {
+   :fhir-mapping {:as :Type :path "CodeableConcept"}
+   :props [
+           {
+            :xpath "./@displayName"
+            :max 1
+            :fhir-mapping {:path "CodeableConcept.text"}
+            }
+           {
+            :xpath "./"
+            :max 1
+            :fhir-mapping {
+                           :path "CodeableConcept.coding"
+                           :then [{:assign ["CodeableConcept.coding.primary" true]}]
+                           }
+            }
+           {
+            :xpath "./translation"
+            :fhir-mapping {:path "CodeableConcept.coding"}
+            }
+           ]
+   }
+
+  :fhir-type-Quantity
+  {
+   :fhir-mapping {:as :Type :path "Quantity"}
+   }
+
+  :fhir-type-Attachment
+  {
+   :fhir-mapping {:as :Type :path "Attachment"}
+   }
+
+  :fhir-type-Ratio
+  {
+   :fhir-mapping {:as :Type :path "Ratio"}
+   }
+
+  :fhir-type-SampledData
+  {
+   :fhir-mapping {:as :Type :path "SampledData"}
+   }
+
+  
+  :fhir-type-Coding
+  {
+   :fhir-mapping {:as :Type :path "Coding"}
+   :props [
+           {
+            :xpath "./@code"
+            :max 1
+            :fhir-mapping {:path "Coding.code"}
+            }
+           {
+            :xpath "./@displayName"
+            :max 1
+            :fhir-mapping {:path "Coding.display"}
+            }
+           {
+            :xpath "./@codeSystem"
+            :max 1
+            :fhir-mapping {:path "Coding.system" :transform :oid-to-uri}
+            }
+           ]
+   }
+
+  :ccda-value-element
+  {
+   :fhir-mapping {:as :Mixin}
+   :props [
+           {
+            :min 0
+            :max 1
+            :xpath "./[@xsi:type='CD']"
+            :fhir-mapping {:path "CodeableConcept"}
+            }
+           {
+            :min 0
+            :max 1
+            :xpath "./[@xsi:type='ST']"
+            :fhir-mapping {:path "string"}
+            }
+           ]
+   }
+
+  :functional-status-result-observation
+  {
+   :fhir-mapping {:as :Resource :path  "Observation" }
+   :props [
+           {
+            :min 1
+            :max 1
+            :xpath "./value"
+            :fhir-mapping {:path "Observation.value[x]"}
+            :mixin :ccda-value-element
+            }
+           {
+            :min 1
+            :max 1
+            :xpath "./effectiveTime"
+            :fhir-mapping {:path "Observation.applies[x]"}
+            }
+           {
+            :min 0
+            :max 1
+            :xpath "./interpretationCode"
+            :fhir-mapping {:path "Observation.interpretation"}
+            }
+           {
+            :min 0
+            :max 1
+            :xpath "./methodCode"
+            :fhir-mapping {:path "Observation.method"}
+            }
+           {
+            :min 0
+            :max 1
+            :xpath "./targetSiteCode"
+            :fhir-mapping {:path "Observation.bodySite"}
+            }
+                                        ; These are problemantic -- specifically: what do they *mean* ?
+                                        ;   5. MAY contain zero or one [0..1] entryRelationship (CONF:13892) such that it
+                                        ;   a. SHALL contain exactly one [1..1] @typeCode="REFR" refers to (CONF:14596).
+                                        ;   b. SHALL contain exactly one [1..1] Non-Medicinal Supply Activity
+                                        ;   (templateId:2.16.840.1.113883.10.20.22.4.50) (CONF:14218).
+                                        ;   16. MAY contain zero or one [0..1] entryRelationship (CONF:13895) such that it
+                                        ;   a. SHALL contain exactly one [1..1] @typeCode="REFR" refers to (CONF:14597).
+                                        ;   b. SHALL contain exactly one [1..1] Caregiver Characteristics
+                                        ;   (templateId:2.16.840.1.113883.10.20.22.4.72) (CONF:13897).
+                                        ;   17. MAY contain zero or one [0..1] entryRelationship (CONF:14465) such that it
+                                        ;   a. SHALL contain exactly one [1..1] @typeCode="COMP" has component (CONF:14598).
+                                        ;   b. SHALL contain exactly one [1..1] Assessment Scale Observation
+                                        ;   (templateId:2.16.840.1.113883.10.20.22.4.69) (CONF:14466).
+                                        ;   18. SHOULD contain zero or more [0..*] referenceRange (CONF:13937).
+                                        ;   a. The referenceRange, if present, SHALL contain exactly one [1..1] observationRange (CONF:13938)
+           ]
+   }
+  }}

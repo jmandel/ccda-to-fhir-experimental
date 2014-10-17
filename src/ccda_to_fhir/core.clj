@@ -122,3 +122,7 @@
         (if primitive
           {:path (way :path) :value (to-fhir-dt primitive node)}
           {:path (way :path) :value (fill-in-template ccda-context node mapping-context template)})))))
+
+
+(defn parse-ccda [root-element]
+    (fill-in-tempate nil root-element (atom {}) (template/definitions :ccda-sections)))

@@ -13,7 +13,7 @@
   (->> d dz/descendants (map auto)))
 
 (defn -path-to-zipq [p]
-  (println "handle quer " (type p) p)
+  ;(println "handle quer " (type p) p)
   (let [components (clojure.string/split p #"/")]
     (->> components
          (remove empty?)
@@ -23,7 +23,7 @@
             (let [attr-match (re-find #"(.*?)\[@(.*?)='(.*?)'\]" component)
                   attr (re-find #"@(.*)" component)
                   component (keyword component)]
-              (println "Comp is " component)
+              ;(println "Comp is " component)
               (cond
                attr-match (let [tag (keyword (attr-match 1))
                                 tag (if (empty? (attr-match 1)) nil tag)
@@ -40,17 +40,15 @@
         q)))
 
 (defn to-zipq [prop]
-  (println "to zipq " [(prop :xpath) (prop :template)])
+  ;(println "to zipq " [(prop :xpath) (prop :template)])
   (let [baseq  (-path-to-zipq (prop :xpath))
         template (prop :template)]
     (restrict-query-to-template baseq template)))
 
 (defn follow-path [ccda-nodes path]
-  (println "following from " (count ccda-nodes) "to " path)
-  (println (map :attrs (map zip/node ccda-nodes)))
+  ;(println "following from " (count ccda-nodes) "to " path)
   (let [ret
         (mapcat  #(apply x/xml-> % path) ccda-nodes)]
-    (println "followed to get " (count ret))
     ret))
 
 (defn follow-property [ccda-nodes prop]

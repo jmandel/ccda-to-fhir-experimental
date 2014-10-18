@@ -19,6 +19,7 @@
 (def loaded (from-edn "templates.edn"))
 (def oids (loaded :oids))
 (def base-definitions (loaded :templates))
+(def contexts (loaded :contexts))
 
 (defn merge-mixin [v]
   (let [mixin-path (:mixin v)

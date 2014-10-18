@@ -40,14 +40,13 @@
         q)))
 
 (defn to-zipq [prop]
-  (println "to zipq " (prop :xpath))
+  (println "to zipq " [(prop :xpath) (prop :template)])
   (let [baseq  (-path-to-zipq (prop :xpath))
         template (prop :template)]
     (restrict-query-to-template baseq template)))
 
 (defn follow-path [ccda-nodes path]
   (println "following from " (count ccda-nodes) "to " path)
-  (println "following from " "to " path)
   (println (map :attrs (map zip/node ccda-nodes)))
   (let [ret
         (mapcat  #(apply x/xml-> % path) ccda-nodes)]
@@ -56,6 +55,10 @@
 
 (defn follow-property [ccda-nodes prop]
   (follow-path ccda-nodes (to-zipq prop)))
+
+(defn follow-xpath [ccda-nodes xpath]
+  (follow-path ccda-nodes (to-zipq xpath)))
+
 
 (defn by-template [d t]
   (->> d -all-nodes
